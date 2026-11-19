@@ -71,6 +71,7 @@ def main(days: int = 7):
     # actually is, not PurpleAir's own device-reported GPS.
     coords_by_id = {s["sensor_index"]: (s.get("latitude"), s.get("longitude")) for s in CONFIG.get("stations", [])}
     sn_by_id = {s["sensor_index"]: s.get("sn") for s in CONFIG.get("stations", [])}
+    name_by_id = {s["sensor_index"]: s.get("name") for s in CONFIG.get("stations", [])}
     overridden, kept_purpleair = 0, 0
     for s in sensors:
         lat, lon = coords_by_id.get(s.get("sensor_index"), (None, None))
@@ -80,6 +81,8 @@ def main(days: int = 7):
         else:
             kept_purpleair += 1
         s["sn"] = sn_by_id.get(s.get("sensor_index"))
+        if name_by_id.get(s.get("sensor_index")):
+            s["name"] = name_by_id[s["sensor_index"]]  # use the sheet's station name, not PurpleAir's
     log.info("Coordinates: %d sensor(s) using spreadsheet latitude/longitude, %d falling back to PurpleAir's own location",
               overridden, kept_purpleair)
 
