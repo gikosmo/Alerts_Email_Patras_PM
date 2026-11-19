@@ -1,0 +1,39 @@
+name: Daily network alert
+
+on:
+  schedule:
+    - cron: "0 4 * * *"   # every day at 04:00 UTC (06:00 Athens winter, 07:00 summer)
+  workflow_dispatch:      # "Run workflow" button for manual tests
+
+permissions:
+  contents: read
+  issues: write           # to open/update the network-alert issue
+
+jobs:
+  check-network:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Read station list from the Google Sheet (same one as the v2 dashboard)
+        run: |
+          mkdir -p data
+          curl -sfL -o data/patras_station_list.csv "https://docs.google.com/spreadsheets/d/1NSi4--4t5uOIlALRwernzGfiWqOHlqwmDnbkkyo8HsM/export?format=csv&gid=0"
+          python scripts/build_station_list.py
+
+      - name: Download last 24 h from PurpleAir and run the checks
+        env:
+          PURPLEAIR_API_KEY: ${{ secrets.PURPLEAIR_API_KEY }}
+        run: python scripts/backfill.py --days 1
+
+      - name: Post / update the alert issue (GitHub emails you on changes)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python scripts/alert.py
