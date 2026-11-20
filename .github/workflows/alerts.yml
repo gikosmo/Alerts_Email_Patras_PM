@@ -2,7 +2,7 @@ name: Daily network alert
 
 on:
   schedule:
-    - cron: "0 4 * * *"   # every day at 04:00 UTC (06:00 Athens winter, 07:00 summer)
+    - cron: "3 22 * * *"   # every day at 04:00 UTC (06:00 Athens winter, 07:00 summer)
   workflow_dispatch:      # "Run workflow" button for manual tests
 
 permissions:
