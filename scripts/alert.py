@@ -15,9 +15,11 @@ How it avoids noise:
     Its text is rewritten every day with the full current report — editing
     doesn't send notifications.
   - A new comment (which DOES notify you: GitHub app push and/or an email
-    from notifications@github.com, nothing in your Sent folder) is posted
-    only when the set of problem stations changes: something new broke, or
-    something recovered.
+    from notifications@github.com) is posted on EVERY run with the FULL
+    report (all problem stations with R², slope, intercept, % A/B
+    disagreement), plus a line on what changed. So the email always shows
+    the whole picture, and a missing daily email means the run did not happen.
+    Set "comment_every_run": false in config.json "alerts" to email only on changes.
   - When everything is fine again the issue is closed with a short comment.
 
 Usage:
@@ -51,6 +53,7 @@ AL = {
     "legacy_cal_slope": 0.42,
     "legacy_cal_intercept": 0.26,
     "low_data_pct": 25,
+    "comment_every_run": True,
     **CONFIG.get("alerts", {}),
 }
 STATE_RE = re.compile(r"<!-- alert-state: (.*?) -->", re.S)
@@ -193,6 +196,11 @@ def change_note(old: dict, new: dict, by_id: dict) -> str:
     return "\n\n".join(out)
 
 
+def for_comment(report: str) -> str:
+    """Full report for the comment/email, without the hidden state marker."""
+    return STATE_RE.sub("", report).rstrip()
+
+
 def pages_url() -> str | None:
     repo = os.environ.get("GITHUB_REPOSITORY")
     if not repo or "/" not in repo:
@@ -280,16 +288,18 @@ def main():
 
     if not state:
         gh.comment(num, f"{ping}✅ Όλοι οι σταθμοί λειτουργούν κανονικά ({period(summary)}). "
-                        f"Κλείνει το alert.\n\n{change_note(old_state, state, by_id)}")
+                        f"Κλείνει το alert.\n\n{change_note(old_state, state, by_id)}\n\n---\n\n{for_comment(report)}")
         gh.update_issue(num, body=report, state="closed", title=f"✅ Δίκτυο Πάτρας OK ({period(summary)})")
         log.info("All clear — closed issue #%s", num)
         return
 
     gh.update_issue(num, title=title, body=report)
-    if state != old_state:
-        gh.comment(num, f"{ping}Αλλαγή κατάστασης δικτύου ({period(summary)}):\n\n"
-                        f"{change_note(old_state, state, by_id)}\n\nΠλήρης αναφορά στην περιγραφή του issue.")
-        log.info("Issue #%s updated, change comment posted", num)
+    changed = state != old_state
+    if changed or AL["comment_every_run"]:
+        note = change_note(old_state, state, by_id) if changed else "Καμία αλλαγή από την προηγούμενη αναφορά."
+        gh.comment(num, f"{ping}**{n_bad} σταθμοί με πρόβλημα** ({period(summary)})\n\n"
+                        f"{note}\n\n---\n\n{for_comment(report)}")
+        log.info("Issue #%s updated, full report comment posted (changed=%s)", num, changed)
     else:
         log.info("Issue #%s updated silently (no change since last run)", num)
 
